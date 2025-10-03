@@ -1,0 +1,46 @@
+# Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+path: ../pcb_component # dataset root dir
+train: images/train # train images (relative to 'path') 128 images
+val: images/val # val images (relative to 'path') 128 images
+test: images/test # test images (optional)
+
+# Classes
+names:
+  0: connector
+  1: resistor
+  2: pads
+  3: emi filter
+  4: capacitor
+  5: resistor network
+  6: text
+  7: text_resistor
+  8: text_capacitor
+  9: text_EF
+  10: pins
+  11: text_component
+  12: test point
+  13: led
+  14: clock
+  15: ic
+  16: switch
+  17: text_TP
+  18: text_ic
+  19: text_SW
+  20: electrolytic capacitor
+  21: button
+  22: diode
+  23: fuse
+  24: transistor
+  25: ferrite bead
+  26: jumper
+  27: inductor
+  28: zener diode
+  29: diode zener array
+  30: resistor jumper
+  31: potentiometer
+  32: display
+  33: transformer
+  34: capacitor jumper
+  35: battery
+  36: heatsink
+  37: buzzer

@@ -29,6 +29,7 @@ from ultralytics.utils import (
     LOCAL_RANK,
     LOGGER,
     RANK,
+    SETTINGS,
     TQDM,
     __version__,
     callbacks,
@@ -40,7 +41,7 @@ from ultralytics.utils import (
 from ultralytics.utils.autobatch import check_train_batch_size
 from ultralytics.utils.checks import check_amp, check_file, check_imgsz, check_model_file_from_stem, print_args
 from ultralytics.utils.dist import ddp_cleanup, generate_ddp_command
-from ultralytics.utils.files import get_latest_run
+from ultralytics.utils.files import get_latest_run, increment_path
 from ultralytics.utils.torch_utils import (
     TORCH_2_4,
     EarlyStopping,
@@ -108,8 +109,18 @@ class BaseTrainer:
         init_seeds(self.args.seed + 1 + RANK, deterministic=self.args.deterministic)
 
         # Dirs
-        self.save_dir = get_save_dir(self.args)
-        self.args.name = self.save_dir.name  # update name for loggers
+        project = self.args.project or Path(SETTINGS['runs_dir']) / self.args.task
+        name = self.args.name or f'{self.args.mode}'
+        if hasattr(self.args, 'save_dir'):
+            self.save_dir = Path(self.args.save_dir)
+        else:
+            self.save_dir = Path(
+                increment_path(Path(project) / name, exist_ok=self.args.exist_ok if RANK in (-1, 0) else True))
+
+        #self.save_dir = get_save_dir(self.args)
+        #self.args.name = self.save_dir.name  # update name for loggers
+
+
         self.wdir = self.save_dir / "weights"  # weights dir
         if RANK in {-1, 0}:
             self.wdir.mkdir(parents=True, exist_ok=True)  # make dir

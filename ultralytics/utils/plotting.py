@@ -405,7 +405,7 @@ class Annotator:
                 cv2.putText(
                     self.im,
                     label,
-                    (p1[0], p1[1] - 2 if outside else p1[1] + h - 1),
+                    (p1[0], p1[1] - 2 if outside else p1[1] + h - 1), # 原本为p1[0],
                     0,
                     self.sf,
                     txt_color,
@@ -565,7 +565,7 @@ class Annotator:
 
     def save(self, filename="image.jpg"):
         """Save the annotated image to 'filename'."""
-        cv2.imwrite(filename, np.asarray(self.im))
+        cv2.imwrite(filename, np.asarray(self.im), [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
     @staticmethod
     def get_bbox_dimension(bbox=None):
@@ -978,7 +978,7 @@ def plot_labels(boxes, cls, names=(), save_dir=Path(""), on_plot=None):
             ax[a].spines[s].set_visible(False)
 
     fname = save_dir / "labels.jpg"
-    plt.savefig(fname, dpi=200)
+    plt.savefig(fname, dpi=600)
     plt.close()
     if on_plot:
         on_plot(fname)
@@ -1109,7 +1109,7 @@ def plot_images(
         mosaic = cv2.resize(mosaic, tuple(int(x * ns) for x in (w, h)))
 
     # Annotate
-    fs = int((h + w) * ns * 0.01)  # font size
+    fs = int((h + w) * ns * 0.007)  # font size
     annotator = Annotator(mosaic, line_width=round(fs / 10), font_size=fs, pil=True, example=names)
     for i in range(bs):
         x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin

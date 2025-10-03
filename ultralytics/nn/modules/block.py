@@ -10,6 +10,9 @@ from ultralytics.utils.torch_utils import fuse_conv_and_bn
 from .conv import Conv, DWConv, GhostConv, LightConv, RepConv, autopad
 from .transformer import TransformerBlock
 
+from ultralytics.tricks.dscconv import DySnakeConv
+from ultralytics.tricks.deform_conv import DeformConv2d
+
 __all__ = (
     "DFL",
     "HGBlock",
@@ -20,6 +23,10 @@ __all__ = (
     "C2",
     "C3",
     "C2f",
+    "C2DS",
+    "C3k2DS",
+    "C3DF",
+    "GSConv",
     "C2fAttn",
     "ImagePoolingAttn",
     "ContrastiveHead",
@@ -243,6 +250,28 @@ class C2f(nn.Module):
         """Forward pass using split() instead of chunk()."""
         y = self.cv1(x).split((self.c, self.c), 1)
         y = [y[0], y[1]]
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+class C2DS(nn.Module):
+    """C2f Bottleneck with DynamicSnake convolutions."""
+
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
+        super().__init__()
+        self.c = int(c2 * e)  # hidden channels
+        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
+        self.cv2 = Conv((2 + n) * self.c, c2, 1)  # optional act=FReLU(c2)
+        self.m = nn.ModuleList(DySnakeConv(self.c, self.c) for _ in range(n))
+
+    def forward(self, x):
+        """Forward pass of a YOLOv5 CSPDarknet backbone layer."""
+        y = list(self.cv1(x).chunk(2, 1))
+        y.extend(m(y[-1]) for m in self.m)
+        return self.cv2(torch.cat(y, 1))
+
+    def forward_split(self, x):
+        """Applies spatial attention to module's input."""
+        y = list(self.cv1(x).split((self.c, self.c), 1))
         y.extend(m(y[-1]) for m in self.m)
         return self.cv2(torch.cat(y, 1))
 
@@ -742,6 +771,41 @@ class C3k(C3):
         c_ = int(c2 * e)  # hidden channels
         # self.m = nn.Sequential(*(RepBottleneck(c_, c_, shortcut, g, k=(k, k), e=1.0) for _ in range(n)))
         self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, k=(k, k), e=1.0) for _ in range(n)))
+
+
+class C3k2DS(C2f):
+    """Faster Implementation of CSP Bottleneck with 2 convolutions."""
+
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True):
+        """Initializes the C3k2 module, a faster CSP Bottleneck with 2 convolutions and optional C3k blocks."""
+        super().__init__(c1, c2, n, shortcut, g, e)
+        self.m = nn.ModuleList(
+            C3k(self.c, self.c, 2, shortcut, g) if c3k else DySnakeConv(self.c, self.c) for _ in range(n)
+        )
+
+class         C3DF(C2f):
+    """Faster Implementation of CSP Bottleneck with 2 convolutions."""
+
+    def __init__(self, c1, c2, n=1, c3k=False, e=0.5, g=1, shortcut=True, modulation = False):
+        """Initializes the C3k2 module, a faster CSP Bottleneck with 2 convolutions and optional C3k blocks."""
+        super().__init__(c1, c2, n, shortcut, g, e)
+        self.m = nn.ModuleList(
+            C3k(self.c, self.c, 2, shortcut, g) if c3k else DeformConv2d(self.c, self.c, modulation= modulation) for _ in range(n)
+        )
+
+class GSConv(nn.Module):
+    def __init__(self, c1, c2, k=1, s=1, g=1, act=True):
+        super().__init__()
+        c_ = c2 // 2
+        self.cv1 = Conv(c1, c_, k, s, None, g, act=act)
+        self.cv2 = Conv(c_, c_, 5, 1, None, c_, act=act)
+        self.shuf = nn.Conv2d(c_ * 2, c2, 1, 1, 0, bias=False)
+        self.act = nn.ReLU()
+
+    def forward(self, x):
+        y = self.cv1(x)
+        y2 = torch.cat((y, self.cv2(y)), 1)
+        return self.act(self.shuf(y2))
 
 
 class RepVGGDW(torch.nn.Module):
